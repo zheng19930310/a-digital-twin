@@ -149,8 +149,7 @@ body{
 #overlay{
   position:fixed;inset:0;z-index:20;display:none;
   perspective:1500px;perspective-origin:50% 44%;
-  background:radial-gradient(120% 90% at 50% 45%,rgba(4,12,20,.55),rgba(2,7,12,.88));
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  background:radial-gradient(120% 90% at 50% 45%,rgba(4,12,20,.78),rgba(2,7,12,.93));
 }
 #overlay.show{display:block;animation:fadeIn .2s ease-out}
 #overlay.closing{animation:fadeOut .2s ease-in forwards}
@@ -178,11 +177,24 @@ body{
   transition:width .5s cubic-bezier(.25,.9,.3,1)}
 #report.f-l,#report.f-r{width:min(calc(var(--cap) + 150px),calc(88vw - 1.1 * var(--wingW)))}
 #report.f-l.f-r{width:min(calc(var(--cap) + 280px),92vw)}
-.body{width:100%;max-height:92vh;overflow:auto;
+.body{width:100%;max-height:92vh;overflow:auto;overscroll-behavior:contain;
   background:linear-gradient(180deg,rgba(9,28,42,.97),rgba(5,14,24,.98));
   border:1px solid rgba(25,194,180,.5);border-radius:6px;
   box-shadow:0 26px 60px rgba(0,0,0,.6),0 0 30px rgba(25,194,180,.16);
   padding:0 22px 22px}
+/* 滚动条：原生条在 3D 变换子树内无法用鼠标拖动/点击（命中测试失效），
+   改为隐藏原生条 + JS 自绘的可拖动滚动条（.dtBar/.dtThumb）。 */
+.body::-webkit-scrollbar,.wingIn::-webkit-scrollbar{width:0;height:0;display:none}
+.body,.wingIn{scrollbar-width:none;-ms-overflow-style:none}
+.body::-webkit-scrollbar-thumb,.wingIn::-webkit-scrollbar-thumb{background:transparent}
+.dtBar{position:fixed;width:12px;z-index:45;border-radius:6px;cursor:pointer;display:none;
+  background:rgba(255,255,255,.05);box-shadow:0 0 0 1px rgba(25,194,180,.12) inset}
+.dtBar.on{display:block}
+.dtThumb{position:absolute;left:2px;right:2px;border-radius:5px;cursor:grab;
+  background:rgba(25,194,180,.55);transition:background .15s}
+.dtThumb:hover,.dtThumb.drag{background:rgba(60,225,210,.95);cursor:grabbing}
+@media (max-width:900px){.dtBar{display:none!important}}
+.body{overscroll-behavior:contain}
 /* 可折叠侧翼：铰接在主面板左右外缘 */
 .wing{position:absolute;top:0;height:100%;width:var(--wingW);will-change:transform,filter;
   background:linear-gradient(180deg,rgba(8,26,40,.96),rgba(4,13,22,.97));
@@ -191,15 +203,18 @@ body{
 .wing.left{right:100%;transform-origin:100% 50%;border-right:none;border-radius:6px 0 0 6px}
 .wing.right{left:100%;transform-origin:0 50%;border-left:none;border-radius:0 6px 6px 0}
 .wingIn{height:100%;overflow:auto;padding:14px 14px 16px}
-/* 折页拉手：位于折痕处，始终可见可点 */
-.hinge{position:absolute;top:50%;width:20px;height:96px;transform:translateY(-50%);
-  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:8;
+/* 折页拉手：脱离倾斜面板，由 JS 跟随面板边缘定位，任何角度都可点 */
+.hinge{position:absolute;width:22px;height:104px;z-index:12;
+  transform:translateZ(60px);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
   background:linear-gradient(180deg,rgba(25,194,180,.34),rgba(25,194,180,.12));
   border:1px solid rgba(25,194,180,.6);color:#9ff3e8;font-size:11px;
-  transition:background .18s}
-.hinge:hover{background:linear-gradient(180deg,rgba(25,194,180,.62),rgba(25,194,180,.26))}
-.hinge.hl{left:-10px;border-radius:4px 0 0 4px;transform:translateY(-50%) translateZ(16px)}
-.hinge.hr{right:-10px;border-radius:0 4px 4px 0;transform:translateY(-50%) translateZ(16px)}
+  transition:background .18s, box-shadow .18s;touch-action:manipulation;
+  will-change:top,left}
+.hinge:hover{background:linear-gradient(180deg,rgba(25,194,180,.62),rgba(25,194,180,.26));
+  box-shadow:0 0 14px rgba(25,194,180,.45)}
+.hinge.hl{border-radius:4px 0 0 4px}
+.hinge.hr{border-radius:0 4px 4px 0}
 /* 弹出动画（作用于舞台层，避免与逐帧倾斜互相覆盖） */
 #stage.pop{animation:pop3d .55s cubic-bezier(.18,.9,.24,1)}
 @keyframes pop3d{
@@ -287,6 +302,7 @@ th{background:rgba(25,194,180,.14);color:#a8e6dd;font-weight:600;letter-spacing:
 td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);color:#cfe6f5;white-space:nowrap}
 tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
 tbody tr:hover{background:rgba(25,194,180,.09)}
+tbody tr.sel{background:rgba(25,194,180,.18);box-shadow:inset 3px 0 0 var(--teal)}
 td.num{font-family:Consolas,monospace;color:#fff}
 .badge{display:inline-block;font-size:10px;padding:1px 8px;border-radius:10px;letter-spacing:1px}
 .b-ok{color:#5ff0a8;background:rgba(62,224,138,.12);border:1px solid rgba(62,224,138,.4)}
@@ -294,6 +310,26 @@ td.num{font-family:Consolas,monospace;color:#fff}
 .b-err{color:#ff8b96;background:rgba(255,93,108,.12);border:1px solid rgba(255,93,108,.45)}
 .b-info{color:#7cc4ff;background:rgba(74,168,255,.12);border:1px solid rgba(74,168,255,.45)}
 #repFoot{margin-top:12px;font-size:10px;color:var(--dim);text-align:center;letter-spacing:1px}
+
+/* ---------- 数据浮框 ---------- */
+#tip{
+  position:fixed;left:0;top:0;z-index:40;pointer-events:none;display:none;
+  max-width:260px;padding:7px 10px;border-radius:4px;
+  background:linear-gradient(180deg,rgba(10,34,50,.97),rgba(5,16,26,.97));
+  border:1px solid rgba(25,194,180,.55);
+  box-shadow:0 8px 26px rgba(0,0,0,.6),0 0 16px rgba(25,194,180,.18);
+  font-size:11px;color:#dff3ff;line-height:1.6;letter-spacing:.5px;
+  transform:translate(-50%,-100%);will-change:transform;
+}
+#tip.show{display:block}
+#tip .tt{color:#a8e6dd;font-weight:600;display:block;margin-bottom:2px}
+#tip .tv{font-family:Consolas,monospace;color:#fff}
+#tip .tu{color:var(--dim);font-size:10px;margin-left:3px}
+#tip .up{color:var(--green)} #tip .down{color:var(--red)}
+/* 可交互元素统一给出手型 */
+tbody tr,.kpi,.panel,.rank .r,.tl li,.devs .d,.mrow,.q,.hinge,
+#rotBar button,.tag,#tiltBtn,.badge{cursor:pointer}
+tbody tr:hover td.num{color:var(--teal)}
 
 @media (max-width:1500px){
   #report{--wingW:214px}
@@ -320,8 +356,6 @@ td.num{font-family:Consolas,monospace;color:#fff}
   #report,#report.f-l,#report.f-r,#report.f-l.f-r{width:min(94vw,1180px)}
   .wing.left{right:auto;left:0;transform-origin:0 50%;border-right:1px solid rgba(25,194,180,.32);border-radius:6px 0 0 6px;z-index:5}
   .wing.right{left:auto;right:0;transform-origin:100% 50%;border-left:1px solid rgba(25,194,180,.32);border-radius:0 6px 6px 0;z-index:5}
-  .hinge.hl{transform:translateY(-50%) translateZ(56px)}
-  .hinge.hr{transform:translateY(-50%) translateZ(56px)}
   #repHead .close{display:none}
 }
 @media (max-width:760px){
@@ -437,7 +471,6 @@ td.num{font-family:Consolas,monospace;color:#fff}
   <div id="stage">
     <div id="report">
       <div class="wing left" id="wingL"><div class="wingIn" id="wingLin"></div></div>
-      <div class="hinge hl" id="hingeL">❯</div>
       <div class="body">
         <div id="repHead">
           <span class="dot"></span>
@@ -459,13 +492,16 @@ td.num{font-family:Consolas,monospace;color:#fff}
           <h4 id="tblTitle">明细数据</h4>
           <table><thead id="thRow"></thead><tbody id="tbBody"></tbody></table>
         </div>
-        <div id="repFoot">瑞晟数字孪生平台 · 拖拽平移 / 滚轮缩放 / 右键或 Q·E 旋转 · 双击任意处关闭报表</div>
+        <div id="repFoot">悬停数据查看浮框 · 点击表格行高亮 · 两侧拉手折叠 / 展开 · 双击任意处关闭</div>
       </div>
       <div class="wing right" id="wingR"><div class="wingIn" id="wingRin"></div></div>
-      <div class="hinge hr" id="hingeR">❮</div>
     </div>
+    <div class="hinge hl" id="hingeL">❯</div>
+    <div class="hinge hr" id="hingeR">❮</div>
   </div>
 </div>
+
+<div id="tip"></div>
 
 <script>
 /* =========================================================
@@ -475,6 +511,8 @@ td.num{font-family:Consolas,monospace;color:#fff}
 "use strict";
 
 /* ---------- 基础 ---------- */
+/* 对外集成钩子：宿主页面可覆盖 DT.xxx 实现联动 */
+var DT = window.DT || (window.DT = {});
 var cv = document.getElementById('scene');
 var ctx = cv.getContext('2d');
 var DPR = Math.min(2, window.devicePixelRatio || 1);
@@ -493,7 +531,10 @@ function stepRot(){
   rot += (rotT - rot) * 0.16;
   if (Math.abs(rotT - rot) < 0.0004) rot = rotT;
   updRot(); applyCam();
+  var d = DT.scene ? DT.scene.getRotation() : -1;
+  if (d !== lastRotDeg){ lastRotDeg = d; emit('rotate', { deg: d }); }
 }
+var lastRotDeg = -1;
 function nudgeRot(d){ rotT += d; }
 
 function clampPan(){
@@ -804,7 +845,10 @@ var devices = [
   { key:'dev:lamp2', x:34.5, y:16.5, type:'lamp', idx:2 },
   { key:'dev:lamp3', x:41.5, y:30.5, type:'lamp', idx:3 }
 ];
-var agvPath = [[35,17.2],[18,17.2],[18,29.5],[30,29.5],[30,17.2]];
+/* 巡逻环线：严格走道路中心线，避免穿过建筑与设备
+   纵向道路 9.4~12.6 / 38.6~42，横向道路 15.2~18.8 / 28.4~31.6
+   右侧取 x=41：仓库占到 x=40，车体半宽 0.7，取 40.3 会蹭到墙。 */
+var agvPath = [[11,17.6],[41,17.6],[41,30],[11,30]];
 var agvLoop = agvPath.concat([agvPath[0]]);
 
 function drawTank(x,y){
@@ -881,6 +925,7 @@ function drawAGVAt(pos, t){
 
 /* ---------- 场景渲染 ---------- */
 var now = 0, hoverKey = null, selKey = null;
+var agvLive = [11, 17.6];                            // AGV 实时位置，供外部定位
 
 function drawScene(ts){
   now = ts || 0;
@@ -919,6 +964,7 @@ function drawScene(ts){
   });
   push(7.6, 37.6, function(){ camera(7.6, 37.6); });
   var agvNow = agvPos(now / 1000);
+  agvLive = agvNow;
   push(agvNow[0], agvNow[1], function(){ drawAGVAt(agvNow, now / 1000); });
 
   var tx, ty;
@@ -1032,9 +1078,13 @@ function drawRoofPanels(){
   ]);
 }
 
-/* ---------- 主循环 ---------- */
+/* ---------- 主循环 ----------
+   报表打开时暂停场景重绘：弹层已遮住厂区，省下满屏 canvas 重绘，
+   报表内滚动与滑轮联动因此保持流畅。 */
 function loop(ts){
-  drawScene(ts);
+  now = ts || 0;
+  if (overlay && overlay.classList.contains('show')) stepRot();
+  else drawScene(ts);
   syncCompass();
   requestAnimationFrame(loop);
 }
@@ -1062,14 +1112,15 @@ window.addEventListener('mousemove', function(e){
     return;
   }
   var m = evPos(e);
-  hoverKey = pickAt(m[0], m[1]);
+  var hk = pickAt(m[0], m[1]);
+  if (hk !== hoverKey){ hoverKey = hk; emit('hover', { key: hoverKey }); }
   cv.style.cursor = hoverKey ? 'pointer' : 'default';
 });
 window.addEventListener('mouseup', function(e){
   if (drag && moved < 6){
     var m = evPos(e);
     var k = pickAt(m[0], m[1]);
-    if (k){ selKey = k; openReport(k); }
+    if (k){ selKey = k; emit('select', { key: k, name: DATA[k] ? DATA[k].name : k }); openReport(k); }
   }
   drag = null;
 });
@@ -1411,7 +1462,7 @@ function renderWings(key, d){
 
 /* ---------- 打开 / 关闭 ---------- */
 var currentKey = null;
-function openReport(key){
+function openReport(key, quiet){
   var d = DATA[key];
   if (!d) return;
   currentKey = key;
@@ -1444,13 +1495,20 @@ function openReport(key){
   document.getElementById('tbBody').innerHTML = tb;
   overlay.classList.remove('closing');
   overlay.classList.add('show');
-  stage.classList.remove('pop'); void stage.offsetWidth; stage.classList.add('pop');
-  foldL = smallScreen() ? 1 : 0; foldR = foldL;   // 小屏默认合拢双翼
+  if (!quiet){
+    // 静默刷新（外部数据轮询）不重放弹出动画、不重置折叠状态
+    stage.classList.remove('pop'); void stage.offsetWidth; stage.classList.add('pop');
+    foldL = smallScreen() ? 1 : 0; foldR = foldL;   // 小屏默认合拢双翼
+    needSettle(900);                                // 弹出 + 宽度过渡期间持续重算几何
+  }
   syncHinge();
+  instantDraw = !!quiet;
   renderWings(key, d);
   drawBar(d.bar); drawPie(d.pie);
+  instantDraw = false;
   statusPill.style.display = 'block';
   statusPill.textContent = '已打开：' + d.name;
+  if (quiet) needSettle(300);
 }
 function closeReport(){
   if (!overlay.classList.contains('show')) return;
@@ -1474,9 +1532,11 @@ window.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeRep
 var tiltX = 0, tiltY = 0, curX = 0, curY = 0;      // 目标 / 当前倾角
 var foldL = 0, foldR = 0, curFL = 0, curFR = 0;    // 目标 / 当前折角（0=展开, 1=收起）
 var foldWob = 0, useGyro = false;
+var settleUntil = 0;                                 // 该时刻前逐帧重算几何（面板宽度过渡 / 开合）
+function needSettle(ms){ settleUntil = performance.now() + (ms || 650); layoutDirty = true; }
 function smallScreen(){ return window.innerWidth < 1240; }
 
-/* 折页拉手（位于折页外缘，随折页一起转动） */
+/* 折页拉手：独立于倾斜面板，逐帧贴到面板两侧，任何角度都可点 */
 var hingeL = document.getElementById('hingeL');
 var hingeR = document.getElementById('hingeR');
 function bindHinge(el, side){
@@ -1493,17 +1553,73 @@ function syncHinge(){
   hingeR.textContent = foldR ? '❯' : '❮';
   reportEl.classList.toggle('f-l', !!foldL);
   reportEl.classList.toggle('f-r', !!foldR);
+  layoutDirty = true;                 // 面板名义宽度变了，拉手 / 滚动条要重算
+  needSettle(700);
 }
 syncHinge();
+/* 拉手位置只依赖面板名义宽度，不受 3D 倾斜影响，因此不会点空 */
+/* Chromium 会对“每帧都在变的 3D transform”持续重建合成层，
+   真实鼠标事件的命中测试会打到旧的 quad 上（落点变成 #stage），
+   表现为折叠按钮/表格/滚轮“没反应”。这里做两件事：
+   1) lerp 收敛到目标后强制吸附（epsilon snap）；
+   2) 样式字符串没变化就完全不写 DOM。 */
+var _stCache = {};
+var layoutDirty = true;                            // 需要重算几何（位置 / 滚动条 / 悬停）的标记
+function setS(el, prop, v, key){
+  if (_stCache[key] === v) return false;
+  _stCache[key] = v; el.style[prop] = v; return true;
+}
+var HINGE_Z = 60, PERSP = 1500;
+function placeHinges(){
+  var half = reportEl.offsetWidth / 2;
+  var cx = window.innerWidth / 2, cy = window.innerHeight * 0.44;
+  var h = hingeL.offsetHeight || 104, w = hingeL.offsetWidth || 22;
+  /* 拉手浮在面板前方 HINGE_Z，透视会把它沿视线推远，这里反向缩放，
+     让它始终贴在面板的视觉边缘。 */
+  var s = (PERSP - HINGE_Z) / PERSP;
+  var mob = window.innerWidth <= 900;            // 手机：抽屉贴屏幕两侧
+  var xl = mob ? 2 : cx - (half + w / 2) * s;
+  var xr = mob ? window.innerWidth - w - 2 : cx + (half - w / 2) * s;
+  var top = cy - (h / 2) * s;
+  top = Math.max(6, Math.min(window.innerHeight - h - 6, top));
+  xl = Math.max(2, Math.min(window.innerWidth - w - 2, xl));
+  xr = Math.max(2, Math.min(window.innerWidth - w - 2, xr));
+  setS(hingeL, 'left', xl + 'px', 'hl'); setS(hingeR, 'left', xr + 'px', 'hr');
+  setS(hingeL, 'top', top + 'px', 'htl'); setS(hingeR, 'top', top + 'px', 'htr');
+}
+placeHinges();
+window.addEventListener('resize', function(){ needSettle(700); placeHinges(); syncBars(); });
 
-/* 桌面：鼠标位置驱动轻微倾斜 */
+/* 桌面：鼠标位置驱动轻微倾斜。
+   关键约束：只要 transform 每帧还在变，Chromium 的真实事件命中测试就会
+   落到旧的合成 quad 上（target 变成 #stage），于是图表悬停、滚轮、
+   折叠拉手全部失效。所以指针进入面板范围时把倾角目标归零，
+   面板“回正”后 lerp 会吸附并停止写 DOM，命中测试恢复精确；
+   指针离开面板再恢复跟手的晃动。 */
+var tiltInside = false;
+function pointerInsidePanel(x, y){
+  var rs = [reportEl.getBoundingClientRect(), hingeL.getBoundingClientRect(), hingeR.getBoundingClientRect()];
+  for (var i = 0; i < rs.length; i++){
+    var r = rs[i];
+    if (x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8) return true;
+  }
+  return false;
+}
 overlay.addEventListener('mousemove', function(e){
   if (useGyro) return;
+  var ins = pointerInsidePanel(e.clientX, e.clientY);
+  if (ins){
+    if (!tiltInside){ tiltInside = true; tiltX = 0; tiltY = 0; layoutDirty = true; }   // 回正，交互相位
+    return;                                                       // 面板内不再改变目标倾角
+  }
+  if (tiltInside){ tiltInside = false; layoutDirty = true; }
   var nx = (e.clientX / window.innerWidth - 0.5) * 2;
   var ny = (e.clientY / window.innerHeight - 0.5) * 2;
   tiltY = nx * 9; tiltX = -ny * 6;
 });
-overlay.addEventListener('mouseleave', function(){ tiltX = 0; tiltY = 0; });
+overlay.addEventListener('mouseleave', function(){
+  tiltX = 0; tiltY = 0; tiltInside = false; layoutDirty = true;
+});
 
 /* 手机：设备方向驱动晃动 + 折叠感 */
 var tiltBtn = document.getElementById('tiltBtn');
@@ -1535,35 +1651,344 @@ if (window.DeviceOrientationEvent && /Mobi|Android|iPhone|iPad/i.test(navigator.
 }
 
 function tiltLoop(){
-  curX += (tiltX - curX) * 0.08;
-  curY += (tiltY - curY) * 0.08;
+  if (!overlay.classList.contains('show')){
+    if (layoutDirty){ syncBars(); layoutDirty = false; }
+    requestAnimationFrame(tiltLoop); return;
+  }
+  var px = curX, py = curY, pfl = curFL, pfr = curFR;
+  var ease = tiltInside ? 0.45 : 0.08;              // 指针在面板内：快速回正，尽早停止写 transform
+  var eps = tiltInside ? 0.08 : 0.004;              // 回正吸附阈值
+  curX += (tiltX - curX) * ease;
+  curY += (tiltY - curY) * ease;
+  if (Math.abs(tiltX - curX) < eps) curX = tiltX;
+  if (Math.abs(tiltY - curY) < eps) curY = tiltY;
   var wL = Math.min(1, foldL + foldWob * (1 - foldL));
   var wR = Math.min(1, foldR + foldWob * (1 - foldR));
   curFL += (wL - curFL) * 0.1; curFR += (wR - curFR) * 0.1;
+  if (Math.abs(wL - curFL) < 0.0015) curFL = wL;
+  if (Math.abs(wR - curFR) < 0.0015) curFR = wR;
+  var moving = (curX !== px) || (curY !== py) || (curFL !== pfl) || (curFR !== pfr);
   // 手机：双翼是覆盖式抽屉，展开时平铺在主面板之上
   var mob = window.innerWidth <= 900;
   var baseL = mob ? 0 : 34;
   // 展开 34°，向内折回至 -140°（贴向主面板背面）
   var aL = (mob ? 0 : 34 - curFL * 174) + curY * 1.1 - (mob ? curFL * 148 : 0);
   var aR = (mob ? 0 : -34 + curFR * 174) + curY * 1.1 + (mob ? curFR * 148 : 0);
-  wingL.style.transform = 'rotateY(' + aL.toFixed(2) + 'deg)';
-  wingR.style.transform = 'rotateY(' + aR.toFixed(2) + 'deg)';
+  var wrote = false;
+  wrote = setS(wingL, 'transform', 'rotateY(' + aL.toFixed(2) + 'deg)', 'wl') || wrote;
+  wrote = setS(wingR, 'transform', 'rotateY(' + aR.toFixed(2) + 'deg)', 'wr') || wrote;
   // 折得越合，越隐入主面板后方
-  wingL.style.opacity = (1 - curFL * 0.94).toFixed(3);
-  wingR.style.opacity = (1 - curFR * 0.94).toFixed(3);
-  wingL.style.visibility = curFL > 0.97 ? 'hidden' : 'visible';
-  wingR.style.visibility = curFR > 0.97 ? 'hidden' : 'visible';
+  wrote = setS(wingL, 'opacity', (1 - curFL * 0.94).toFixed(3), 'ol') || wrote;
+  wrote = setS(wingR, 'opacity', (1 - curFR * 0.94).toFixed(3), 'or') || wrote;
+  wrote = setS(wingL, 'visibility', curFL > 0.97 ? 'hidden' : 'visible', 'vl') || wrote;
+  wrote = setS(wingR, 'visibility', curFR > 0.97 ? 'hidden' : 'visible', 'vr') || wrote;
   // 折页受光：转得越偏，越暗
-  wingL.style.filter = 'brightness(' + (0.92 - Math.abs(aL - baseL) * 0.0016 + curY * 0.004).toFixed(3) + ')';
-  wingR.style.filter = 'brightness(' + (0.92 - Math.abs(aR + (mob ? 0 : 34)) * 0.0016 - curY * 0.004).toFixed(3) + ')';
-  reportEl.style.transform = 'rotateX(' + curX.toFixed(2) + 'deg) rotateY(' + curY.toFixed(2) + 'deg)' +
-    ' translateZ(' + (Math.abs(curY) * 1.4).toFixed(1) + 'px)';
+  wrote = setS(wingL, 'filter', 'brightness(' + (0.92 - Math.abs(aL - baseL) * 0.0016 + curY * 0.004).toFixed(3) + ')', 'fl') || wrote;
+  wrote = setS(wingR, 'filter', 'brightness(' + (0.92 - Math.abs(aR + (mob ? 0 : 34)) * 0.0016 - curY * 0.004).toFixed(3) + ')', 'fr') || wrote;
+  wrote = setS(reportEl, 'transform', 'rotateX(' + curX.toFixed(2) + 'deg) rotateY(' + curY.toFixed(2) + 'deg)' +
+    ' translateZ(' + (Math.abs(curY) * 1.4).toFixed(1) + 'px)', 'rpt') || wrote;
+  // 完全静止且无外部变更时，跳过所有布局读取（命中测试此时才精确）
+  // settleUntil：面板宽度有 .5s 过渡，开合 / 折叠期间必须逐帧重算几何
+  if (wrote || moving || layoutDirty || now < settleUntil){
+    placeHinges();
+    syncBars();
+    rafHover();
+    layoutDirty = wrote;              // 本帧写过样式，下一帧再校正一次几何 / 悬停
+  }
   requestAnimationFrame(tiltLoop);
 }
 tiltLoop();
 stage.addEventListener('animationend', function(){ stage.classList.remove('pop'); });
 
+/* =========================================================
+   报表数据交互：悬停浮框 + 手型 + 表格联动
+   ——全部按屏幕坐标路由（document.elementFromPoint 在主线程上
+   始终精确），避免 Chromium 对 3D 子树事件 target 的重定向。
+   ========================================================= */
+var barCv = document.getElementById('barCv'),
+    pieCv = document.getElementById('pieCv'),
+    lineCv = document.getElementById('lineCv'),
+    tbBody = document.getElementById('tbBody');
+function tipRow(title, pairs){
+  var s = '<span class="tt">' + esc(title) + '</span>';
+  pairs.forEach(function(p){ s += p + '<br>'; });
+  return s.replace(/<br>$/, '');
+}
+function valLine(label, v, unit){
+  return '<span>' + esc(label) + '</span> <span class="tv">' + v + '</span>' +
+         (unit ? '<span class="tu">' + esc(unit) + '</span>' : '');
+}
+
+/* —— 图表命中逻辑（坐标驱动，不依赖事件 target） —— */
+function barHover(mx, my, cx, cy){
+  if (!barHit.cfg) return false;
+  var sx = barCv.clientWidth || 1, sy = barCv.clientHeight || 1;
+  var lx = (mx - barCv.getBoundingClientRect().left) / sx * barHit.w;
+  var ly = (my - barCv.getBoundingClientRect().top) / sy * barHit.h;
+  var i = Math.floor((lx - barHit.padL) / barHit.bw);
+  if (i < 0 || i >= barHit.n || ly > barHit.h - barHit.padB + 8){
+    if (barHit.idx !== -1){ barHit.idx = -1; if (barRender) barRender(1); }
+    return false;
+  }
+  if (i !== barHit.idx){ barHit.idx = i; if (barRender) barRender(1); }
+  var cfg = barHit.cfg;
+  var prev = i > 0 ? cfg.values[i - 1] : null;
+  var extra = prev ? valLine('环比', (cfg.values[i] >= prev ? '+' : '') +
+    (((cfg.values[i] - prev) / prev) * 100).toFixed(1) + '%') : '';
+  showTip(tipRow(cfg.labels[i], [valLine('数值', cfg.values[i].toLocaleString(), cfg.unit), extra]), cx, cy);
+  return true;
+}
+function pieHover(mx, my, cx, cy){
+  if (!pieHit.cfg) return false;
+  var pr = pieCv.getBoundingClientRect();
+  var lx = mx - pr.left, ly = my - pr.top;
+  var dx = lx - pieHit.cx, dy = ly - pieHit.cy;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var i = -1;
+  if (dist <= pieHit.r * 1.06 && dist >= pieHit.ir){
+    var a = Math.atan2(dy, dx) + Math.PI / 2;
+    if (a < 0) a += Math.PI * 2;
+    var acc = 0;
+    for (var k = 0; k < pieHit.cfg.items.length; k++){
+      acc += (pieHit.cfg.items[k][1] / pieHit.total) * Math.PI * 2;
+      if (a <= acc){ i = k; break; }
+    }
+  }
+  if (i !== pieHit.idx){ pieHit.idx = i; if (pieRender) pieRender(1); }
+  if (i < 0) return false;
+  var it = pieHit.cfg.items[i];
+  showTip(tipRow(pieHit.cfg.title, [valLine(it[0], it[1] + '%'),
+    valLine('占比色值', it[1] + ' / ' + pieHit.total)]), cx, cy);
+  return true;
+}
+function lineHover(mx, my, cx, cy){
+  if (!lineHit.vals || !lineHit.w) return false;
+  var sx = lineCv.clientWidth || 1, sy = lineCv.clientHeight || 1;
+  var lx = (mx - lineCv.getBoundingClientRect().left) / sx * lineHit.w;
+  var vals = lineHit.vals;
+  var span = lineHit.w - lineHit.padL - lineHit.padR;
+  var i = Math.round((lx - lineHit.padL) / span * (vals.length - 1));
+  if (i < 0 || i >= vals.length){
+    if (lineHit.idx !== -1){ lineHit.idx = -1; if (lineRender) lineRender(1); }
+    return false;
+  }
+  if (i !== lineHit.idx){ lineHit.idx = i; if (lineRender) lineRender(1); }
+  showTip(tipRow('第 ' + i + ' 小时', [valLine('负载', vals[i].toFixed(1) + '%')]), cx, cy);
+  return true;
+}
+function rowTip(tr, cx, cy){
+  var cols = [].slice.call(document.querySelectorAll('#thRow th')).map(function(t){ return t.textContent; });
+  var cells = [].slice.call(tr.children).map(function(t){ return t.textContent; });
+  var pairs = [];
+  for (var i = 0; i < cells.length; i++) pairs.push(valLine(cols[i] || ('列' + i), esc(cells[i])));
+  showTip(tipRow(cells[0], pairs), cx, cy);
+}
+/* 文本型浮框条目：统一登记，由下方坐标路由器按 elementFromPoint 命中 */
+var tipHandlers = [];
+function bindTipOn(sel, read){ tipHandlers.push({ sel: sel, read: read }); }
+bindTipOn('.kpi', function(el){
+  var k = el.querySelector('.k'), v = el.querySelector('.v'), d = el.querySelector('.d');
+  if (!k) return null;
+  return tipRow(k.textContent, [valLine('当前', v ? v.textContent.trim() : '--'),
+    d ? '<span class="' + (d.classList.contains('up') ? 'up' : (d.classList.contains('down') ? 'down' : '')) + '">' + esc(d.textContent) + '</span>' : '']);
+});
+bindTipOn('.mrow', function(el){
+  var n = el.querySelector('.mn'), v = el.querySelector('.mv'), f = el.querySelector('.mf');
+  if (!n) return null;
+  return tipRow(n.textContent, [valLine('数值', v ? v.textContent : '--'),
+    valLine('达成', (f ? f.style.width : '--'))]);
+});
+bindTipOn('.rank .r', function(el){
+  var n = el.querySelector('.rn'), v = el.querySelector('.rv'), f = el.querySelector('.rf');
+  if (!n) return null;
+  return tipRow(n.textContent, [valLine('效率', v ? v.textContent : '--'),
+    valLine('相对第一', f ? f.style.width : '--')]);
+});
+bindTipOn('.tl li', function(el){
+  var b = el.querySelector('b'), s = el.querySelector('span');
+  if (!b) return null;
+  return tipRow(b.textContent, [s ? esc(s.textContent) : '']);
+});
+bindTipOn('.devs .d', function(el){
+  var n = el.querySelector('.sn'), v = el.querySelector('.sv');
+  var sd = el.querySelector('.sd');
+  var st = sd ? (sd.classList.contains('err') ? '告警' : sd.classList.contains('warn') ? '关注' : '正常') : '';
+  if (!n) return null;
+  return tipRow(n.textContent, [valLine('读数', v ? v.textContent : '--'),
+    '状态 <span class="' + (st === '正常' ? 'up' : 'down') + '">' + st + '</span>']);
+});
+
+/* 滚轮 + 悬停 + 点击：统一坐标路由器。
+   document.elementFromPoint 走主线程布局树，不受合成层 quad 过期影响；
+   真实事件的 e.target 在 3D 子树里可能被重定向到 #stage，所以不用它。 */
+function hitAt(x, y){
+  var el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  if (!overlay.classList.contains('show')) return null;
+  // 浮框/自绘滚动条自身不参与路由
+  if (el === tipEl || (el.closest && el.closest('.dtBar'))) return null;
+  return el;
+}
+function routeHover(x, y){
+  var el = hitAt(x, y);
+  if (!el){ hideTip(); return; }
+  if (el === barCv){ if (barHover(x, y, x, y)) return; clearChartHi(); hideTip(); return; }
+  if (el === pieCv){ if (pieHover(x, y, x, y)) return; clearChartHi(); hideTip(); return; }
+  if (el === lineCv){ if (lineHover(x, y, x, y)) return; clearChartHi(); hideTip(); return; }
+  clearChartHi();
+  var tr = el.closest ? el.closest('#tbBody tr') : null;
+  if (tr){ rowTip(tr, x, y); return; }
+  for (var i = 0; i < tipHandlers.length; i++){
+    var t = el.closest ? el.closest(tipHandlers[i].sel) : null;
+    if (t && t.closest('#report')){
+      var html = tipHandlers[i].read(t);
+      if (html) showTip(html, x, y); else hideTip();
+      return;
+    }
+  }
+  hideTip();
+}
+function clearChartHi(){
+  if (barHit.idx !== -1){ barHit.idx = -1; if (barRender) barRender(1); }
+  if (pieHit.idx !== -1){ pieHit.idx = -1; if (pieRender) pieRender(1); }
+  if (lineHit.idx !== -1){ lineHit.idx = -1; if (lineRender) lineRender(1); }
+}
+var hoverPt = null;
+window.addEventListener('mousemove', function(e){
+  if (!overlay.classList.contains('show')){ hoverPt = null; return; }
+  hoverPt = [e.clientX, e.clientY];
+  routeHover(e.clientX, e.clientY);
+}, true);
+/* 命中结果在面板“正在倾斜”的那几帧可能失真（合成层 quad 落后于布局），
+   因此在 rAF 里用最新坐标自愈一次：面板回正后立即补算悬停。 */
+function rafHover(){
+  if (!hoverPt || !overlay.classList.contains('show')) return;
+  routeHover(hoverPt[0], hoverPt[1]);
+}
+/* 面板倾斜过程中，命中结果可能有 1~2 帧的延迟；用短定时器补算，
+   静止时只做一次极廉价的 elementFromPoint，成本可忽略。 */
+setInterval(rafHover, 90);
+window.addEventListener('click', function(e){
+  if (!overlay.classList.contains('show')) return;
+  var el = hitAt(e.clientX, e.clientY);
+  if (!el) return;
+  var tr = el.closest ? el.closest('#tbBody tr') : null;
+  if (!tr) return;
+  e.preventDefault();
+  var on = tr.classList.contains('sel');
+  [].slice.call(tbBody.children).forEach(function(t){ t.classList.remove('sel'); });
+  if (!on) tr.classList.add('sel');
+  if (DT.onTableRow) DT.onTableRow(currentKey, [].slice.call(tbBody.children).indexOf(tr),
+    [].slice.call(tr.children).map(function(t){ return t.textContent; }));
+}, true);
+
+function scrollableOf(el){
+  while (el && el !== document.body){
+    if (el.scrollHeight - el.clientHeight > 2){
+      var oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') return el;
+    }
+    el = el.parentNode;
+  }
+  return null;
+}
+window.addEventListener('wheel', function(e){
+  if (!overlay.classList.contains('show')) return;
+  var el = hitAt(e.clientX, e.clientY);
+  if (!el) return;
+  var t = scrollableOf(el);
+  if (!t) return;
+  e.preventDefault(); e.stopPropagation();
+  var unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? t.clientHeight : 1);
+  t.scrollTop += e.deltaY * unit * 2.2;
+}, {passive:false, capture:true});
+
+/* 自绘纵向滚动条：浮在 3D 面板之外（document.body 下），
+   因此拖动、点击轨道、滚轮都是原生精确命中，跟手即时。 */
+var dtBars = [];
+function makeBar(target, allow, key){
+  var bar = document.createElement('div'); bar.className = 'dtBar'; bar.setAttribute('data-k', key);
+  var th = document.createElement('div'); th.className = 'dtThumb';
+  bar.appendChild(th); document.body.appendChild(bar);
+  var drag = null;
+  function seek(clientY){
+    var max = target.scrollHeight - target.clientHeight;
+    var range = bar.clientHeight - th.offsetHeight;
+    if (range <= 0 || max <= 0) return;
+    var t = clientY - drag.y + drag.top;
+    target.scrollTop = Math.max(0, Math.min(max, (t / range) * max));
+  }
+  th.addEventListener('mousedown', function(e){
+    e.preventDefault(); e.stopPropagation();
+    drag = { y: e.clientY, top: th.offsetTop }; th.classList.add('drag');
+  });
+  bar.addEventListener('mousedown', function(e){
+    if (e.target === th) return;
+    e.preventDefault();
+    var r = th.getBoundingClientRect();
+    target.scrollTop += (e.clientY > r.bottom ? 1 : -1) * target.clientHeight * 0.9;
+    drag = { y: e.clientY, top: th.offsetTop }; th.classList.add('drag');
+  });
+  window.addEventListener('mousemove', function(e){ if (drag) seek(e.clientY); });
+  window.addEventListener('mouseup', function(){ if (drag){ drag = null; th.classList.remove('drag'); } });
+  bar.addEventListener('wheel', function(e){
+    e.preventDefault(); e.stopPropagation();
+    target.scrollTop += e.deltaY * (e.deltaMode === 1 ? 16 : 1) * 2.2;
+  }, {passive:false});
+  var o = { bar: bar, th: th, target: target, allow: allow, key: key, shown: false };
+  dtBars.push(o); return o;
+}
+function syncBar(o){
+  var t = o.target, max = t.scrollHeight - t.clientHeight;
+  var on = o.allow() && max > 6 && window.innerWidth > 900;
+  if (!on){
+    if (o.shown){ o.bar.classList.remove('on'); o.shown = false; }
+    return;
+  }
+  if (!o.shown){ o.bar.classList.add('on'); o.shown = true; }
+  var r = t.getBoundingClientRect();
+  setS(o.bar, 'left', Math.round(r.right - 15) + 'px', o.key + 'l');
+  setS(o.bar, 'top', Math.round(r.top + 8) + 'px', o.key + 't');
+  setS(o.bar, 'height', Math.round(Math.max(40, r.height - 16)) + 'px', o.key + 'h');
+  var track = o.bar.clientHeight || 1;
+  var hh = Math.max(30, Math.min(track - 4, track * t.clientHeight / t.scrollHeight));
+  var pos = (track - hh) * (t.scrollTop / max);
+  setS(o.th, 'height', Math.round(hh) + 'px', o.key + 'th');
+  setS(o.th, 'top', Math.round(Math.max(0, pos)) + 'px', o.key + 'tt');
+}
+function syncBars(){
+  if (!dtBars) return;                             // tiltLoop 先于滚动条初始化时跳过
+  for (var i = 0; i < dtBars.length; i++) syncBar(dtBars[i]);
+}
+var bodyScroller = reportEl.querySelector('.body');
+var wingLScroller = document.getElementById('wingLin');
+var wingRScroller = document.getElementById('wingRin');
+makeBar(bodyScroller, function(){ return overlay.classList.contains('show'); }, 'b');
+makeBar(wingLScroller, function(){ return overlay.classList.contains('show') && !foldL && window.innerWidth > 900; }, 'wl');
+makeBar(wingRScroller, function(){ return overlay.classList.contains('show') && !foldR && window.innerWidth > 900; }, 'wr');
+[bodyScroller, wingLScroller, wingRScroller].forEach(function(t){
+  t.addEventListener('scroll', syncBars, {passive:true});
+});
+
 /* ---------- 图表 ---------- */
+
+/* 数据浮框：所有报表内数据点共用 */
+var tipEl = document.getElementById('tip');
+var tipOn = false;
+function showTip(html, cx, cy){
+  tipEl.innerHTML = html;
+  tipEl.classList.add('show');
+  var w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  var x = Math.max(w / 2 + 8, Math.min(window.innerWidth - w / 2 - 8, cx));
+  var y = cy - 14;
+  if (y - h < 8) y = cy + h + 26;               // 上方放不下则翻到下方
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = y + 'px';
+  tipOn = true;
+}
+function hideTip(){ if (tipOn){ tipEl.classList.remove('show'); tipOn = false; } }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
 function prepCanvas(id){
   var c = document.getElementById(id);
   var w = c.clientWidth || 480, h = c.clientHeight || 230;
@@ -1575,11 +2000,28 @@ function prepCanvas(id){
 }
 function ease(t){ return 1 - Math.pow(1 - t, 3); }
 
+/* 图表命中信息（供浮框使用） */
+var barHit = { cfg:null, idx:-1, w:0, h:0, padL:0, padB:0, n:0, bw:0 };
+var pieHit = { cfg:null, idx:-1, cx:0, cy:0, r:0, ir:0, total:0, colors:null };
+var lineHit = { vals:null, idx:-1, w:0, h:0, padL:0, padR:0, padT:0, padB:0, max:0 };
+var barRender = null, pieRender = null, lineRender = null;
+function redrawCharts(){
+  if (barRender) barRender(1);
+  if (pieRender) pieRender(1);
+  if (lineRender) lineRender(1);
+}
+function resetChartHit(){
+  var ch = barHit.idx >= 0 || pieHit.idx >= 0 || lineHit.idx >= 0;
+  barHit.idx = -1; pieHit.idx = -1; lineHit.idx = -1;
+  if (ch) redrawCharts();
+}
+
 function drawBar(cfg){
   var c = prepCanvas('barCv'), x = c.ctx, w = c.w, h = c.h;
   var padL = 46, padR = 12, padT = 16, padB = 26;
   var max = Math.max.apply(null, cfg.values) * 1.15;
   var n = cfg.values.length, bw = (w - padL - padR) / n;
+  barHit = { cfg: cfg, idx: -1, w: w, h: h, padL: padL, padB: padB, n: n, bw: bw };
   function render(p){
     x.clearRect(0,0,w,h);
     x.strokeStyle = 'rgba(255,255,255,0.07)'; x.lineWidth = 1;
@@ -1590,16 +2032,22 @@ function drawBar(cfg){
       x.fillText(Math.round(max * (1 - i/4)).toLocaleString(), padL - 6, yy + 3);
     }
     x.textAlign = 'center';
+    var hi = barHit.idx;
     for (var j = 0; j < n; j++){
       var v = cfg.values[j] * ease(p);
       var bh = (h - padT - padB) * (v / max);
       var bx = padL + j * bw + bw * 0.26, bwd = bw * 0.48;
       var by = h - padB - bh;
+      if (j === hi){                                   // 悬停列高亮
+        x.fillStyle = 'rgba(25,194,180,0.10)';
+        x.fillRect(padL + j * bw, padT, bw, h - padT - padB);
+      }
       var g = x.createLinearGradient(0, by, 0, h - padB);
       g.addColorStop(0, cfg.color); g.addColorStop(1, 'rgba(255,255,255,0.05)');
       x.fillStyle = g; x.fillRect(bx, by, bwd, bh);
-      x.fillStyle = cfg.color; x.fillRect(bx, by, bwd, 2);
-      x.fillStyle = 'rgba(200,225,240,0.9)'; x.font = '10px Consolas,monospace';
+      x.fillStyle = cfg.color; x.fillRect(bx, by, bwd, j === hi ? 3 : 2);
+      x.fillStyle = j === hi ? '#ffffff' : 'rgba(200,225,240,0.9)';
+      x.font = (j === hi ? 'bold ' : '') + '10px Consolas,monospace';
       x.fillText(cfg.values[j].toLocaleString(), bx + bwd/2, by - 4);
       x.fillStyle = 'rgba(150,180,200,0.75)';
       x.fillText(cfg.labels[j], bx + bwd/2, h - padB + 14);
@@ -1607,6 +2055,7 @@ function drawBar(cfg){
     x.textAlign = 'left'; x.fillStyle = 'rgba(150,180,200,0.6)';
     x.fillText('单位：' + cfg.unit, padL, 10);
   }
+  barRender = render;
   animate(render);
 }
 function drawPie(cfg){
@@ -1614,38 +2063,47 @@ function drawPie(cfg){
   var colors = ['#19c2b4','#4aa8ff','#ffab2e','#a06bff','#3ee08a','#ff5d6c'];
   var cx = w * 0.36, cy = h / 2, r = Math.min(w * 0.3, h * 0.36), ir = r * 0.58;
   var total = cfg.items.reduce(function(a,b){ return a + b[1]; }, 0);
+  pieHit = { cfg: cfg, cx: cx, cy: cy, r: r, ir: ir, total: total, colors: colors };
   function render(p){
     x.clearRect(0,0,w,h);
     var ang = -Math.PI / 2;
     cfg.items.forEach(function(it, i){
       var a = (it[1] / total) * Math.PI * 2 * ease(p);
+      var hov = (i === pieHit.idx);
+      var rr = hov ? r * 1.055 : r;
       x.beginPath(); x.moveTo(cx, cy);
-      x.arc(cx, cy, r, ang, ang + a); x.closePath();
-      x.fillStyle = colors[i % colors.length]; x.fill();
+      x.arc(cx, cy, rr, ang, ang + a); x.closePath();
+      x.fillStyle = colors[i % colors.length];
+      x.globalAlpha = (pieHit.idx >= 0 && !hov) ? 0.55 : 1;
+      x.fill(); x.globalAlpha = 1;
       x.strokeStyle = 'rgba(6,16,26,0.9)'; x.lineWidth = 2; x.stroke();
       ang += a;
     });
     x.beginPath(); x.arc(cx, cy, ir, 0, 6.29); x.fillStyle = '#0a1c2a'; x.fill();
     x.strokeStyle = 'rgba(25,194,180,0.35)'; x.lineWidth = 1; x.stroke();
     x.textAlign = 'center'; x.fillStyle = '#dff6f1';
-    x.font = 'bold 15px Consolas,monospace'; x.fillText('100%', cx, cy + 2);
+    x.font = 'bold 15px Consolas,monospace';
+    x.fillText(pieHit.idx >= 0 ? (cfg.items[pieHit.idx][1] + '%') : '100%', cx, cy + 2);
     x.font = '9px "PingFang SC",sans-serif'; x.fillStyle = 'rgba(150,180,200,0.8)';
-    x.fillText(cfg.title, cx, cy + 16);
+    x.fillText(pieHit.idx >= 0 ? cfg.items[pieHit.idx][0] : cfg.title, cx, cy + 16);
     x.textAlign = 'left';
     var lx = w * 0.68, ly = h / 2 - cfg.items.length * 11 + 4;
     cfg.items.forEach(function(it, i){
       x.fillStyle = colors[i % colors.length];
       x.fillRect(lx, ly - 6, 8, 8);
-      x.fillStyle = 'rgba(205,230,245,0.92)'; x.font = '11px "PingFang SC",sans-serif';
+      x.fillStyle = (i === pieHit.idx) ? '#ffffff' : 'rgba(205,230,245,0.92)';
+      x.font = (i === pieHit.idx ? 'bold ' : '') + '11px "PingFang SC",sans-serif';
       x.fillText(it[0], lx + 14, ly + 1);
       x.fillStyle = 'rgba(150,180,200,0.8)'; x.textAlign = 'right';
       x.fillText(it[1] + '%', w - 10, ly + 1); x.textAlign = 'left';
       ly += 22;
     });
   }
+  pieRender = render;
   animate(render);
 }
 function animate(render){
+  if (instantDraw){ render(1); return; }        // 静默刷新：直接终态，不重放入场动画
   var t0 = null;
   function step(ts){
     if (!t0) t0 = ts;
@@ -1655,6 +2113,7 @@ function animate(render){
   }
   requestAnimationFrame(step);
 }
+var instantDraw = false;
 
 /* 半环仪表（左翼健康度） */
 function drawGauge(val){
@@ -1707,10 +2166,12 @@ function drawMini(vals){
 
 /* 24 小时曲线（超宽屏第三图） */
 function drawLine(vals){
-  var el = document.getElementById('lineCv'); if (!el || !el.offsetParent) return;
+  var el = document.getElementById('lineCv');
+  if (!el || !el.offsetParent){ lineRender = null; return; }
   var c = prepCanvas('lineCv'), x = c.ctx, w = c.w, h = c.h;
   var padL = 40, padR = 12, padT = 18, padB = 26;
   var max = Math.max.apply(null, vals) * 1.2;
+  lineHit = { vals: vals, idx: -1, w: w, h: h, padL: padL, padR: padR, padT: padT, padB: padB, max: max };
   function px(i){ return padL + (i / (vals.length - 1)) * (w - padL - padR); }
   function py(v){ return h - padB - (v / max) * (h - padT - padB); }
   function render(p){
@@ -1736,13 +2197,136 @@ function drawLine(vals){
     for (var m = 0; m < n; m += 3){
       x.fillStyle = '#9fe0ff'; x.beginPath(); x.arc(px(m), py(vals[m]), 2.2, 0, 6.29); x.fill();
     }
+    if (lineHit.idx >= 0 && lineHit.idx < n){          // 悬停十字线与高亮点
+      var hx = px(lineHit.idx), hy = py(vals[lineHit.idx]);
+      x.strokeStyle = 'rgba(159,224,255,0.5)'; x.lineWidth = 1;
+      x.setLineDash([4,3]); x.beginPath();
+      x.moveTo(hx, padT); x.lineTo(hx, h - padB); x.stroke(); x.setLineDash([]);
+      x.fillStyle = '#ffffff'; x.beginPath(); x.arc(hx, hy, 4, 0, 6.29); x.fill();
+      x.strokeStyle = '#4aa8ff'; x.lineWidth = 2; x.beginPath(); x.arc(hx, hy, 6, 0, 6.29); x.stroke();
+    }
     x.textAlign = 'center'; x.fillStyle = 'rgba(150,180,200,0.75)';
     for (var t = 0; t < 24; t += 6) x.fillText(t + '时', px(t), h - padB + 14);
     x.textAlign = 'left'; x.fillStyle = 'rgba(150,180,200,0.6)';
     x.fillText('单位：%', padL, 10);
   }
+  lineRender = render;
   animate(render);
 }
+
+/* =========================================================
+   对外 API —— 供宿主页面集成调用（详见 API.md）
+   全部方法挂在 window.DT 上，可安全地被外部覆盖回调。
+   ========================================================= */
+function emit(name, payload){
+  try {
+    var cb = DT['on' + name.charAt(0).toUpperCase() + name.slice(1)];
+    if (typeof cb === 'function') cb(payload, DT);
+  } catch (err){ if (window.console) console.error('[DT] on' + name, err); }
+  window.dispatchEvent(new CustomEvent('dt:' + name, { detail: payload }));
+}
+
+DT.version = '1.4.0';
+DT.scene = {
+  /* 旋转 */
+  rotate:      function(deg){ rotT += deg * Math.PI / 180; userMoved = true; },
+  setRotation: function(deg){ rotT = deg * Math.PI / 180; userMoved = true; },
+  getRotation: function(){ return Math.round(((rot * 180 / Math.PI) % 360 + 360) % 360 * 10) / 10; },
+  snapRotation:function(){ snapRot(); },
+  resetView:   function(){ userMoved = false; applyRot(0); resize(); },
+  /* 缩放 / 平移 */
+  zoom:        function(k){ zoom = Math.max(0.6, Math.min(3.2, zoom * k)); applyCam(); },
+  setZoom:     function(z){ zoom = Math.max(0.6, Math.min(3.2, z)); applyCam(); },
+  getZoom:     function(){ return zoom; },
+  pan:         function(dx, dy){ panX += dx; panY += dy; userMoved = true; applyCam(); },
+  center:      function(){ panX = 0; panY = 0; applyCam(); },
+  /* 对象清单与定位 */
+  /* 对象清单：附带世界坐标，便于外部定位 / 做标记层 */
+  listObjects: function(){
+    var out = [];
+    buildings.forEach(function(b){ out.push({ key:b.key, name:b.name, type:'building',
+      x:b.x + b.w / 2, y:b.y + b.d / 2, w:b.w, d:b.d, h:b.h }); });
+    devices.forEach(function(d){ out.push({ key:d.key, name:d.name || d.key, type:d.type,
+      x:d.type === 'agv' ? agvLive[0] : (d.x === undefined ? null : d.x),
+      y:d.type === 'agv' ? agvLive[1] : (d.y === undefined ? null : d.y) }); });
+    out.push({ key:'dev:solar', name:'屋顶光伏', type:'solar', x:27, y:6.5 });
+    return out;
+  },
+  /* 按 key 定位到某个对象（找不到返回 false） */
+  focusKey:  function(key, zoomTo){
+    var o = null, list = this.listObjects();
+    for (var i = 0; i < list.length; i++) if (list[i].key === key){ o = list[i]; break; }
+    if (!o || o.x === null || o.x === undefined) return false;
+    var b = buildings.filter(function(b){ return b.key === key; })[0];
+    this.focus(o.x, o.y, b ? b.h : 0);
+    if (zoomTo) this.setZoom(zoomTo);
+    return true;
+  },
+  focus:       function(x, y, z){            // 把某个世界坐标移到屏幕中心
+    var p = P(x, y, z || 0);
+    panX += W / 2 - p[0]; panY += H / 2 - p[1];
+    userMoved = true; applyCam();
+  },
+  hover:       function(key){ hoverKey = key; },
+  screenOf:    function(x, y, z){ var p = P(x, y, z || 0); return { x:p[0], y:p[1] }; }
+};
+
+DT.report = {
+  open:   function(key, quiet){
+    if (!DATA[key]){ if (window.console) console.warn('[DT] 未知对象 key：', key); return false; }
+    openReport(key, quiet); return true;
+  },
+  close:  function(){ closeReport(); },
+  isOpen: function(){ return overlay.classList.contains('show'); },
+  current:function(){ return currentKey; },
+  keys:   function(){ return Object.keys(DATA); },
+  data:   function(key){ return key ? (DATA[key] || null) : DATA; },
+  /* 用外部实时数据替换某个对象的报表内容，随后静默重绘（不重放弹出动画） */
+  update: function(key, patch){
+    if (!DATA[key]) return false;
+    Object.keys(patch || {}).forEach(function(k){ DATA[key][k] = patch[k]; });
+    if (currentKey === key) openReport(key, true);
+    return true;
+  },
+  fold:   function(side, folded){
+    if (side === 'L' || side === 'both') foldL = folded === false ? 0 : 1;
+    if (side === 'R' || side === 'both') foldR = folded === false ? 0 : 1;
+    syncHinge();
+  },
+  tilt:   function(rx, ry){ tiltX = rx || 0; tiltY = ry || 0; },
+  gyro:   function(on){
+    if (on){ window.addEventListener('deviceorientation', onOrient); useGyro = true; }
+    else { window.removeEventListener('deviceorientation', onOrient); useGyro = false; foldWob = 0; }
+    return useGyro;
+  }
+};
+
+DT.tip = { show: function(html, x, y){ showTip(html, x, y); }, hide: function(){ hideTip(); } };
+
+/* 生命周期回调：宿主页面直接赋值覆盖。除 onTableRow 外，第一个参数都是
+   payload 对象，第二个参数是 DT 自身；同时会以 CustomEvent 形式派发
+   window 上的 'dt:<事件名>'，事件数据在 e.detail。
+   DT.onOpen      = function(p, DT){}   // p = { key, name }
+   DT.onClose     = function(p, DT){}   // p = { key }
+   DT.onSelect    = function(p, DT){}   // p = { key, name }  场景内点击对象
+   DT.onHover     = function(p, DT){}   // p = { key|null }   场景内悬停对象
+   DT.onRotate    = function(p, DT){}   // p = { deg }        视角旋转（节流后）
+   DT.onTableRow  = function(key, rowIndex, cells){}          // 报表表格行点击  */
+
+/* ---------- 在 openReport / closeReport / 拾取处触发回调 ---------- */
+var _openReport = openReport, _closeReport = closeReport;
+openReport = function(key, quiet){
+  if (!DATA[key]){ if (window.console) console.warn('[DT] 未知对象 key：', key); return; }
+  _openReport(key, quiet);
+  if (!quiet) emit('open', { key: key, name: DATA[key].name });
+};
+closeReport = function(){
+  var k = currentKey;
+  if (!overlay.classList.contains('show')) return;
+  _closeReport();
+  emit('close', { key: k });
+};
+resetChartHit();
 
 })();
 </script>
